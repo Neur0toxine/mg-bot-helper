@@ -1,0 +1,30 @@
+stages:
+  - test
+  - deploy
+
+tests:
+  stage: test
+  script:
+    - docker-compose -f docker-compose-test.yml pull
+    - docker-compose -f docker-compose-test.yml up -d --build postgres_test
+    - docker-compose -f docker-compose-test.yml run --rm --no-deps mg_bot_test make ci
+  coverage: '/Total Coverage: (\d+\.\d+)%/'
+  after_script:
+    - docker-compose -f docker-compose-test.yml run --rm --no-deps mg_bot_test make test_reports
+  artifacts:
+    name: transport
+    paths:
+      - bin/
+    reports:
+      junit: test-report.xml
+
+deploy:
+  stage: deploy
+  when: on_success
+  only:
+    - release
+  cache: {}
+  script:
+    - echo ${DOCKER_HUB_PASS} | docker login -u ${DOCKER_HUB_USER} --password-stdin hub.retailcrm.pro
+    - docker build -t hub.retailcrm.pro/message-gateway/transport-whatsapp-business ./
+    - docker push hub.retailcrm.pro/message-gateway/transport-whatsapp-business
